@@ -1,0 +1,4 @@
+src
+venv
+docker/files/nova-venv.*
+*.swp

@@ -15,7 +15,7 @@ RUN if [ -z "${ARTIFACTORY_URL}" ]; then \
         apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y curl && \
         curl -ss http://apt.tcpcloud.eu/public.gpg | apt-key add - && \
-        echo "deb [arch=amd64] http://apt.tcpcloud.eu/nightly/ trusty oc30 extra" > /etc/apt/sources.list.d/opencontrail.list \
+        echo "deb [arch=amd64] http://apt.tcpcloud.eu/nightly/ trusty oc30 extra tcp" > /etc/apt/sources.list.d/opencontrail.list \
     ;else \
         apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl && \
@@ -28,7 +28,7 @@ RUN if [ -z "${ARTIFACTORY_URL}" ]; then \
         echo "deb ${ARTIFACTORY_URL}/in-ubuntu-${TIMESTAMP} trusty-security main restricted" >>/etc/apt/sources.list && \
         echo "deb ${ARTIFACTORY_URL}/in-ubuntu-${TIMESTAMP} trusty-security universe" >>/etc/apt/sources.list && \
         curl -ss --insecure "${ARTIFACTORY_URL}/in-ubuntu-oc30/public.gpg" | apt-key add - && \
-        echo "deb ${ARTIFACTORY_URL}/in-ubuntu-oc30-${TIMESTAMP}/nightly trusty oc30 extra" >>/etc/apt/sources.list \
+        echo "deb ${ARTIFACTORY_URL}/in-ubuntu-oc30-${TIMESTAMP}/nightly trusty oc30 extra tcp" >>/etc/apt/sources.list \
     ;fi; \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 

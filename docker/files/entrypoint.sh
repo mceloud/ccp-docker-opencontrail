@@ -7,9 +7,6 @@ if [ "$2" == "check" ]; then
     exit $?
 fi
 
-echo "Symlink for supervisord_$1.conf files"
-ln -s /var/lib/contrail/supervisord_$1_files/* /etc/contrail/supervisord_$1_files/
-
 # Replace env variables for database config files
 if [ "$1" == "database" ]; then
     echo "Replace env variables"

@@ -1,0 +1,13 @@
+#!/bin/sh -e
+
+cd /var/lib/contrail-webui/contrail-web-core/ 
+
+if [ "$1" = "jobserver" ]; then
+    echo "Starting job server"
+    /usr/bin/node jobServerStart.js
+fi
+
+if [ "$1" = "webserver" ]; then
+    echo "Starting web server"
+    /usr/bin/node webServerStart.js
+fi

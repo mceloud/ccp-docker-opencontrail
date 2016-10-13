@@ -6,7 +6,8 @@ all: opencontrail-base \
 	docker-redis \
 	docker-opencontrail-config \
 	docker-opencontrail-control \
-	docker-opencontrail-analytics
+	docker-opencontrail-analytics \
+	docker-opencontrail-webui
 
 opencontrail-base:
 	@echo "== Building opencontrail-base"

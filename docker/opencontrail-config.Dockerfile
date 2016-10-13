@@ -2,6 +2,7 @@ FROM opencontrail/opencontrail-base
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=nointeractive apt-get install -y contrail-config-openstack ifmap-server && \
+    mkdir /var/crashes -p && \
     cp /usr/share/doc/contrail-config/examples/contrail-config-nodemgr.ini /etc/contrail/supervisord_config_files/ && \
     sed -i "s,--conf_file /etc/contrail/contrail-api.conf --conf_file /etc/contrail/contrail-keystone-auth.conf,--conf_file /var/lib/contrail/contrail-api.conf --conf_file /var/lib/contrail/contrail-keystone-auth.conf,g" /etc/contrail/supervisord_config_files/contrail-api.ini && \
     sed -i "s,/etc/contrail/contrail-schema.conf,/var/lib/contrail/contrail-schema.conf,g" /etc/contrail/supervisord_config_files/contrail-schema.ini && \

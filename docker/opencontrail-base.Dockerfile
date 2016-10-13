@@ -33,7 +33,7 @@ RUN if [ -z "${ARTIFACTORY_URL}" ]; then \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN apt-get update && \
-    DEBIAN_FRONTEND=nointeractive apt-get -y install gettext-base contrail-utils contrail-nodemgr && \
+    DEBIAN_FRONTEND=nointeractive apt-get -y install python-yaml gettext-base contrail-utils contrail-nodemgr && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY files/entrypoint.sh /entrypoint.sh

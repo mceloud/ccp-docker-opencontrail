@@ -33,7 +33,8 @@ def images = [
     "redis",
     "opencontrail-config",
     "opencontrail-control",
-    "opencontrail-analytics"
+    "opencontrail-analytics",
+    "opencontrail-webui"
 ]
 def inRepos = [
     "in-dockerhub",

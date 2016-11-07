@@ -7,6 +7,13 @@ if [ "$2" = "check" ]; then
     exit $?
 fi
 
+# Rewrite hostname by underlay host to get persistent naming. Wil be replaced by daemonset later
+if ! [ -z $HOST_HOSTNAME ]; then
+    echo "Rewrite hostname by underlay host"
+    hostname $HOST_HOSTNAME && echo $HOST_HOSTNAME > /etc/hostname && export HOSTNAME=$HOST_HOSTNAME
+    echo "$LOCAL_IP $HOST_HOSTNAME" >> /etc/hosts
+fi
+
 # Replace env variables for database config files
 if [ "$1" = "database" ]; then
     echo "Replace env variables"
@@ -37,12 +44,6 @@ if [ "$1" = "config" ]; then
     cat /etc/contrail/contrail-api.conf | envsubst > /var/lib/contrail/contrail-api.conf
     cat /etc/contrail/contrail-schema.conf | envsubst > /var/lib/contrail/contrail-schema.conf
     cat /etc/contrail/contrail-svc-monitor.conf | envsubst > /var/lib/contrail/contrail-svc-monitor.conf
-fi
-
-# Rewrite hostname by underlay host to get persistent naming. Wil be replaced by daemonset later
-if ! [ -z $HOST_HOSTNAME ]; then
-    echo "Rewrite hostname by underlay host"
-    hostname $HOST_HOSTNAME && echo $HOST_HOSTNAME > /etc/hostname
 fi
 
 echo "Starting opencontrail-$1"

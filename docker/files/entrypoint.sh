@@ -40,7 +40,7 @@ if [ "$1" = "config" ]; then
 fi
 
 # Rewrite hostname by underlay host to get persistent naming. Wil be replaced by daemonset later
-if [ -z $HOST_HOSTNAME ]; then
+if ! [ -z $HOST_HOSTNAME ]; then
     echo "Rewrite hostname by underlay host"
     hostname $HOST_HOSTNAME && echo $HOST_HOSTNAME > /etc/hostname
 fi

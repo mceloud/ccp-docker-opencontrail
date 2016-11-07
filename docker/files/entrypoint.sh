@@ -39,5 +39,11 @@ if [ "$1" = "config" ]; then
     cat /etc/contrail/contrail-svc-monitor.conf | envsubst > /var/lib/contrail/contrail-svc-monitor.conf
 fi
 
+# Rewrite hostname by underlay host to get persistent naming. Wil be replaced by daemonset later
+if [ -z $HOST_HOSTNAME ]; then
+    echo "Rewrite hostname by underlay host"
+    hostname $HOST_HOSTNAME && echo $HOST_HOSTNAME > /etc/hostname
+fi
+
 echo "Starting opencontrail-$1"
 /usr/bin/supervisord --nodaemon -c /etc/contrail/supervisord_$1.conf

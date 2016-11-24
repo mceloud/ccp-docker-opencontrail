@@ -1,4 +1,4 @@
-FROM opencontrail/opencontrail-base
+FROM {{ image_spec("opencontrail-base") }}
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=nointeractive apt-get install -y redis-server && \

@@ -1,0 +1,45 @@
+dsl_version: 0.1.0
+service:
+  ports:
+    - {{ opencontrail.control_port }}
+    - {{ opencontrail.named_port }}
+    - {{ opencontrail.xmpp_port }}
+    - {{ opencontrail.dns_introspect_port }}
+    - {{ opencontrail.dns_xmpp_port }}
+  name: opencontrail-control
+  kind: DaemonSet
+  hostNetwork: true
+  containers:
+    - name: opencontrail-control
+      image: opencontrail-control
+      privileged: true
+      env:
+        - name: LOCAL_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      daemon:
+        command: /entrypoint.sh control
+        files:
+          - contrail-control.conf
+          - contrail-control-nodemgr.conf
+          - contrail-control-nodemgr.ini
+          - contrail-dns.conf
+
+files:
+  contrail-control.conf:
+    path: /etc/contrail/contrail-control.conf
+    content: contrail-control.conf.j2
+  contrail-control-nodemgr.conf:
+    path: /etc/contrail/contrail-control-nodemgr.conf
+    content: contrail-control-nodemgr.conf.j2
+  contrail-control-nodemgr.ini:
+    path: /etc/contrail/supervisord_control_files/contrail-control-nodemgr.ini
+    content: contrail-control-nodemgr.ini.j2
+  contrail-dns.conf:
+    path: /etc/contrail/contrail-dns.conf
+    content: contrail-dns.conf.j2

@@ -33,8 +33,13 @@ RUN if [ -z "${ARTIFACTORY_URL}" ]; then \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 RUN apt-get update && \
-    DEBIAN_FRONTEND=nointeractive apt-get -y install python-yaml gettext-base contrail-utils contrail-nodemgr && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    DEBIAN_FRONTEND=nointeractive apt-get -y install curl python-yaml gettext-base contrail-utils contrail-nodemgr netcat lvm2 open-iscsi tgt vim less patch gcc python-dev && \
+     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+     python get-pip.py && \
+     rm get-pip.py && \
+     pip install --no-cache-dir -r https://raw.githubusercontent.com/openstack/fuel-ccp-debian-base/master/docker/base-tools/requirements.txt && \
+     apt-get -y purge gcc python-dev && apt-get -y autoremove && apt-get clean && \
+     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY files/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -1,0 +1,79 @@
+dsl_version: 0.1.0
+service:
+  ports:
+    - {{ opencontrail.zookeeper_port }}
+    - {{ opencontrail.zookeeper_cluster_port }}
+    - {{ opencontrail.zookeeper_leader_port }}
+    - {{ opencontrail.kafka_port }}
+    - {{ opencontrail.cassandra_rpc_port }}
+    - {{ opencontrail.cassandra_inter_port }}
+    - {{ opencontrail.cassandra_port }}
+  name: oc-nal-database-02
+  containers:
+    - name: opencontrail-database
+      image: opencontrail-database
+      env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: ID
+          value: '2'
+        - name: DATABASE_MEMBER01
+          value: {{ address('oc-database-01') }}
+        - name: DATABASE_MEMBER02
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: DATABASE_MEMBER03
+          value: {{ address('oc-database-03') }}
+      volumes:
+        - name: cassandra
+          type: host
+          path: /var/lib/cassandra/analytics
+      daemon:
+        command: /entrypoint.sh database
+        files:
+          - cassandra.yaml
+          - cassandra-env.sh
+          - contrail-database-nodemgr.conf
+          - server.properties
+    - name: opencontrail-zookeeper
+      image: zookeeper
+      env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: ID
+          value: '2'
+        - name: DATABASE_MEMBER01
+          value: {{ address('oc-database-01') }}
+        - name: DATABASE_MEMBER02
+          value: {{ address('oc-database-02') }}
+        - name: DATABASE_MEMBER03
+          value: {{ address('oc-database-03') }}
+      volumes:
+        - name: zookeeper
+          type: host
+          path: /var/lib/zookeeper/analytics/version-2
+      daemon:
+        command: /entrypoint.sh database
+        files:
+          - zoo.cfg
+files:
+  cassandra.yaml:
+    path: /etc/cassandra/cassandra.yaml
+    content: cassandra.yaml.j2
+  cassandra-env.sh:
+    path: /etc/cassandra/cassandra-env.sh
+    content: cassandra-env.sh.j2
+  contrail-database-nodemgr.conf:
+    path: /etc/contrail/contrail-database-nodemgr.conf
+    content: contrail-database-nodemgr.conf.j2
+  server.properties:
+    path: /usr/share/kafka/config/server.properties
+    content: server.properties.j2
+  zoo.cfg:
+    path: /etc/zookeeper/conf/zoo.cfg
+    content: zoo.cfg.j2

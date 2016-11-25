@@ -1,5 +1,31 @@
 configs:
   opencontrail:
+    zookeeper_port:
+      cont: 2181
+    zookeeper_cluster_port:
+      cont: 3888
+    zookeeper_leader_port:
+      cont: 2888
+    kafka_port:
+      cont: 9092
+    cassandra_rpc_port:
+      cont: 9160
+    cassandra_inter_port:
+      cont: 7000
+    cassandra_port:
+      cont: 9042
+    analytics_api_port:
+      cont: 8081
+    collector_port:
+      cont: 8086
+    redis_port:
+      cont: 6379
+    config_api_port:
+      cont: 8082
+    ifmap_port:
+      cont: 8443
+    discovery_port:
+      cont: 5998
     control_port:
       cont: 8083
     named_port:

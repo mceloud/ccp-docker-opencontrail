@@ -1,0 +1,63 @@
+dsl_version: 0.1.0
+service:
+  ports:
+    - {{ opencontrail.analytics_api_port }} 
+    - {{ opencontrail.collector_port }}
+    - {{ opencontrail.redis_port }}
+  name: opencontrail-analytics
+  kind: DaemonSet
+  hostNetwork: true
+  containers:
+    - name: opencontrail-analytics
+      image: opencontrail-analytics
+      env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: LOCAL_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      daemon:
+        command: /entrypoint.sh analytics
+        files:
+          - contrail-analytics-nodemgr.conf
+          - contrail-alarm-gen.conf
+          - contrail-snmp-collector.conf
+          - contrail-topology.conf
+          - contrail-collector.conf
+          - contrail-query-engine.conf
+          - contrail-analytics-api.conf
+          - contrail-analytics-nodemgr.ini
+    - name: redis-server
+      image: redis
+files:
+  contrail-analytics-nodemgr.conf:
+    path: /etc/contrail/contrail-analytics-nodemgr.conf
+    content: contrail-analytics-nodemgr.conf.j2
+  contrail-alarm-gen.conf:
+    path: /etc/contrail/contrail-alarm-gen.conf
+    content: contrail-alarm-gen.conf.j2
+  contrail-snmp-collector.conf:
+    path: /etc/contrail/contrail-snmp-collector.conf
+    content: contrail-snmp-collector.conf.j2
+  contrail-topology.conf:
+    path: /etc/contrail/contrail-topology.conf
+    content: contrail-topology.conf.j2
+  contrail-collector.conf:
+    path: /etc/contrail/contrail-collector.conf
+    content: contrail-collector.conf.j2
+  contrail-query-engine.conf:
+    path: /etc/contrail/contrail-query-engine.conf
+    content: contrail-query-engine.conf.j2
+  contrail-analytics-api.conf:
+    path: /etc/contrail/contrail-analytics-api.conf
+    content: contrail-analytics-api.conf.j2
+  contrail-analytics-nodemgr.ini:
+    path: /etc/contrail/supervisord_analytics_files/contrail-analytics-nodemgr.ini
+    content: contrail-analytics-nodemgr.ini.j2

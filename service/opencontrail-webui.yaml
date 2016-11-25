@@ -1,0 +1,41 @@
+dsl_version: 0.1.0
+service:
+  ports:
+    - {{ opencontrail.webui_insecure_port }}
+    - {{ opencontrail.webui_port }}
+    - {{ opencontrail.redis_port }}
+  name: opencontrail-webui
+  containers:
+    - name: opencontrail-jobserver
+      image: opencontrail-webui
+      env:
+        - name: OPENCONTRAIL_WEB_LOCAL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      daemon:
+        command: /entrypoint.sh jobserver
+        files:
+          - config.global.js
+          - contrail-webui-userauth.js
+    - name: opencontrail-webserver
+      image: opencontrail-webui
+      env:
+        - name: OPENCONTRAIL_WEB_LOCAL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      daemon:
+        command: /entrypoint.sh webserver
+        files:
+          - config.global.js
+          - contrail-webui-userauth.js
+    - name: redis-server
+      image: redis
+files:
+  config.global.js:
+    path: /etc/contrail/config.global.js
+    content: config.global.js.j2
+  contrail-webui-userauth.js:
+    path: /etc/contrail/contrail-webui-userauth.js
+    content: contrail-webui-userauth.js.j2

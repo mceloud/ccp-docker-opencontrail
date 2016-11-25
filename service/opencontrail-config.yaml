@@ -1,0 +1,78 @@
+dsl_version: 0.1.0
+service:
+  ports:
+    - {{ opencontrail.config_api_port }} 
+    - {{ opencontrail.ifmap_port }}
+    - {{ opencontrail.discovery_port }}
+  name: opencontrail-config
+  kind: DaemonSet
+  hostNetwork: true
+  containers:
+    - name: opencontrail-config
+      image: opencontrail-config
+      env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: LOCAL_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: HOST_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      daemon:
+        command: /entrypoint.sh config
+        files:
+          - publisher.properties
+          - log4j.properties
+          - basicauthusers.properties
+          - contrail-api.conf
+          - vnc_api_lib.ini
+          - contrail-discovery.conf
+          - contrail-device-manager.conf
+          - contrail_sudoers
+          - contrail-keystone-auth.conf
+          - contrail-svc-monitor.conf
+          - contrail-schema.conf
+          - contrail-config-nodemgr.ini
+
+files:
+  publisher.properties:
+    path: /etc/ifmap-server/publisher.properties
+    content: publisher.properties.j2
+  log4j.properties:
+    path: /etc/ifmap-server/log4j.properties
+    content: log4j.properties.j2
+  basicauthusers.properties:
+    path: /etc/ifmap-server/basicauthusers.properties
+    content: basicauthusers.properties.j2
+  contrail-api.conf:
+    path: /etc/contrail/contrail-api.conf
+    content: contrail-api.conf.j2
+  vnc_api_lib.ini:
+    path: /etc/contrail/vnc_api_lib.ini
+    content: vnc_api_lib.ini.j2
+  contrail-discovery.conf:
+    path: /etc/contrail/contrail-discovery.conf
+    content: contrail-discovery.conf.j2
+  contrail-device-manager.conf:
+    path: /etc/contrail/contrail-device-manager.conf
+    content: contrail-device-manager.conf.j2
+  contrail_sudoers:
+    path: /etc/sudoers.d/contrail_sudoers
+    content: contrail_sudoers.j2
+  contrail-keystone-auth.conf:
+    path: /etc/contrail/contrail-keystone-auth.conf
+    content: contrail-keystone-auth.conf.j2
+  contrail-svc-monitor.conf:
+    path: /etc/contrail/contrail-svc-monitor.conf
+    content: contrail-svc-monitor.conf.j2
+  contrail-schema.conf:
+    path: /etc/contrail/contrail-schema.conf
+    content: contrail-schema.conf.j2
+  contrail-config-nodemgr.ini:
+    path: /etc/contrail/supervisord_config_files/contrail-config-nodemgr.ini
+    content: contrail-config-nodemgr.ini.j2

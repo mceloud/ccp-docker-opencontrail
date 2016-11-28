@@ -32,6 +32,8 @@ service:
           - contrail-webui-userauth.js
     - name: redis-server
       image: redis
+      daemon:
+        command: /usr/bin/redis-server
 files:
   config.global.js:
     path: /etc/contrail/config.global.js

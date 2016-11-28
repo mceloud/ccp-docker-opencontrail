@@ -36,6 +36,8 @@ service:
           - contrail-analytics-nodemgr.ini
     - name: redis-server
       image: redis
+      daemon:
+        command: /usr/bin/redis-server
 files:
   contrail-analytics-nodemgr.conf:
     path: /etc/contrail/contrail-analytics-nodemgr.conf

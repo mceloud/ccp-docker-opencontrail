@@ -3,6 +3,7 @@
  * opencontrail docker build, test, promote pipeline
  *
  * Expected parameters:
+ *   REPOSITORY_URL         URL to repository with opencontrail packages
  *   ARTIFACTORY_URL        Artifactory server location
  *   ARTIFACTORY_OUT_REPO   local repository name to upload image
  *   DOCKER_REGISTRY_SERVER Docker server to use to push image
@@ -42,12 +43,17 @@ def inRepos = [
     "in-ubuntu-oc30"
 ]
 
-def art = artifactory.connection(
-    ARTIFACTORY_URL,
-    DOCKER_REGISTRY_SERVER,
-    DOCKER_REGISTRY_SSL ?: true,
-    ARTIFACTORY_OUT_REPO
-)
+def art
+try {
+    art = artifactory.connection(
+        ARTIFACTORY_URL,
+        DOCKER_REGISTRY_SERVER,
+        DOCKER_REGISTRY_SSL ?: true,
+        ARTIFACTORY_OUT_REPO
+    )
+} catch (MissingPropertyException e) {
+    art = null
+}
 
 def git_commit
 
@@ -90,42 +96,56 @@ node('docker') {
     checkout scm
     git_commit = common.getGitCommit()
 
-    // Check if image of this commit hash isn't already built
-    def results = artifactory.findArtifactByProperties(
-        art,
-        [
-            "git_commit": git_commit
-        ],
-        art.outRepo
-    )
-    if (results.size() >= images.size()) {
-        println "There are already ${results.size} artefacts with same git_commit"
-        if (FORCE_BUILD.toBoolean() == false) {
-            common.abortBuild()
+    if (art) {
+        // Check if image of this commit hash isn't already built
+        def results = artifactory.findArtifactByProperties(
+            art,
+            [
+                "git_commit": git_commit
+            ],
+            art.outRepo
+        )
+        if (results.size() >= images.size()) {
+            println "There are already ${results.size} artefacts with same git_commit"
+            if (FORCE_BUILD.toBoolean() == false) {
+                common.abortBuild()
+            }
         }
-    }
 
-    stage("prepare") {
-        // Prepare Artifactory repositories
-        out = artifactory.createRepos(art, inRepos, timestamp)
-        println "Created input repositories: ${out}"
+        stage("prepare") {
+            // Prepare Artifactory repositories
+            out = artifactory.createRepos(art, inRepos, timestamp)
+            println "Created input repositories: ${out}"
+        }
     }
 
     try {
         stage("build") {
-            // Build nova-build image
-            docker.withRegistry("${art.docker.proto}://in-dockerhub-${timestamp}.${art.docker.base}", "artifactory") {
-                // Hack to set custom docker registry for base image
-                sh "git checkout -f docker/opencontrail-base.Dockerfile; sed -i -e 's,^FROM ,FROM in-dockerhub-${timestamp}.${art.docker.base}/,g' docker/opencontrail-base.Dockerfile"
+            // Build opencontrail-base image
+            if (art) {
+                docker.withRegistry("${art.docker.proto}://in-dockerhub-${timestamp}.${art.docker.base}", "artifactory") {
+                    // Hack to set custom docker registry for base image
+                    sh "git checkout -f docker/opencontrail-base.Dockerfile; sed -i -e 's,^FROM ,FROM in-dockerhub-${timestamp}.${art.docker.base}/,g' docker/opencontrail-base.Dockerfile"
+                    docker.build(
+                        "opencontrail-${OC_VERSION}/opencontrail-base:$timestamp",
+                        [
+                            "--build-arg artifactory_url=${art.url}",
+                            "--build-arg timestamp=${timestamp}",
+                            "-f docker/opencontrail-base.Dockerfile",
+                            "docker"
+                        ].join(' ')
+                    )
+                }
+            } else {
                 docker.build(
                     "opencontrail-${OC_VERSION}/opencontrail-base:$timestamp",
                     [
-                        "--build-arg artifactory_url=${art.url}",
+                        "--build-arg repo_url='${REPOSITORY_URL}'",
+                        "--build-arg repo_key=${REPOSITORY_KEY}",
                         "--build-arg timestamp=${timestamp}",
                         "-f docker/opencontrail-base.Dockerfile",
                         "docker"
                     ].join(' ')
-                )
             }
 
             // Build per-component images
@@ -135,8 +155,10 @@ node('docker') {
             }
             parallel buildSteps
 
-            println "Setting offline parameter to input repositories"
-            out = artifactory.setOffline(art, inRepos, timestamp)
+            if (art) {
+                println "Setting offline parameter to input repositories"
+                out = artifactory.setOffline(art, inRepos, timestamp)
+            }
         }
 
         stage("test") {
@@ -148,7 +170,7 @@ node('docker') {
         }
     } catch (Exception e) {
         currentBuild.result = 'FAILURE'
-        if (KEEP_REPOS.toBoolean() == false) {
+        if (art && KEEP_REPOS.toBoolean() == false) {
             println "Build failed, cleaning up input repositories"
             out = artifactory.deleteRepos(art, inRepos, timestamp)
         }
@@ -156,33 +178,45 @@ node('docker') {
     }
 
     stage("upload") {
-        // Push to artifactory/docker registry
-        uploadSteps = [:]
-        for (img in images) {
-            uploadSteps[img] = uploadComponentImageStep(
-                artifactory,
-                art,
-                img,
-                OC_VERSION,
-                [
-                    "git_commit": git_commit
-                ],
-                timestamp)
+        if (art) {
+            // Push to artifactory/docker registry
+            uploadSteps = [:]
+            for (img in images) {
+                uploadSteps[img] = uploadComponentImageStep(
+                    artifactory,
+                    art,
+                    img,
+                    OC_VERSION,
+                    [
+                        "git_commit": git_commit
+                    ],
+                    timestamp)
+            }
+            parallel uploadSteps
+        } else {
+            for (img in images) {
+                docker.withRegistry(DOCKER_REGISTRY_SERVER) {
+                    img.push()
+                    // Also mark latest image
+                    img.push("latest")
+                }
+            }
         }
-        parallel uploadSteps
     }
 }
 
-def promoteEnv = PROMOTE_ENV ? PROMOTE_ENV : "stable"
+if (art) {
+    def promoteEnv = PROMOTE_ENV ? PROMOTE_ENV : "stable"
 
-timeout(time:1, unit:"DAYS") {
-    input "Promote to ${promoteEnv}?"
-}
+    timeout(time:1, unit:"DAYS") {
+        input "Promote to ${promoteEnv}?"
+    }
 
-node('docker') {
-    stage("promote-${promoteEnv}") {
-        for (img in images) {
-            artifactory.dockerPromote(art, "opencontrail-${OC_VERSION}/${img}", timestamp, "${promoteEnv}")
+    node('docker') {
+        stage("promote-${promoteEnv}") {
+            for (img in images) {
+                artifactory.dockerPromote(art, "opencontrail-${OC_VERSION}/${img}", timestamp, "${promoteEnv}")
+            }
         }
     }
 }

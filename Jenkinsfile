@@ -190,9 +190,10 @@ node('docker') {
         } else {
             for (img in images) {
                 docker.withRegistry(DOCKER_REGISTRY_SERVER) {
-                    img.push()
+                    image = docker.image("opencontrail-${OC_VERSION}/${img}:${timestamp}"),
+                    image.push()
                     // Also mark latest image
-                    img.push("latest")
+                    image.push("latest")
                 }
             }
         }

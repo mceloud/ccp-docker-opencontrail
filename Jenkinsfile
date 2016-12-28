@@ -146,6 +146,7 @@ node('docker') {
                         "-f docker/opencontrail-base.Dockerfile",
                         "docker"
                     ].join(' ')
+                )
             }
 
             // Build per-component images

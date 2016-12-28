@@ -20,8 +20,8 @@ RUN if [ -z "${ARTIFACTORY_URL}" ]; then \
         DEBIAN_FRONTEND=noninteractive apt-get install -y curl && \
         curl -ss http://apt.tcpcloud.eu/public.gpg | apt-key add - && \
         echo "deb [arch=amd64] http://apt.tcpcloud.eu/nightly/ trusty extra tcp" > /etc/apt/sources.list.d/tcpcloud.list && \
-        curl -ss $REPO_KEY | apt-key add - && \
-        echo "deb [arch=amd64] $REPO_URL" > /etc/apt/sources.list.d/opencontrail.list \
+        curl -ss "${REPO_KEY}" | apt-key add - && \
+        echo "deb [arch=amd64] ${REPO_URL}" > /etc/apt/sources.list.d/opencontrail.list \
     ;else \
         apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl && \

@@ -162,13 +162,6 @@ node('docker') {
             }
         }
 
-        stage("test") {
-            testSteps = [:]
-            for (img in images) {
-                testSteps[img] = testComponentImageStep(img, OC_VERSION, timestamp)
-            }
-            parallel testSteps
-        }
     } catch (Exception e) {
         currentBuild.result = 'FAILURE'
         if (art && KEEP_REPOS.toBoolean() == false) {

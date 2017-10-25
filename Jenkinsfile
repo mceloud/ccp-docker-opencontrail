@@ -1,217 +1,102 @@
 /**
+ * Docker Aptly image build pipeline
  *
- * opencontrail docker build, test, promote pipeline
+ * IMAGE_GIT_URL - Image git repo URL
+ * IMAGE_BRANCH - Image repo branch
+ * IMAGE_CREDENTIALS_ID - Image repo credentials id
+ * REGISTRY_URL - Docker registry URL (can be empty)
+ * REGISTRY_CREDENTIALS_ID - Docker hub credentials id
  *
- * Expected parameters:
- *   REPOSITORY_URL         URL to repository with opencontrail packages
- *   ARTIFACTORY_URL        Artifactory server location
- *   ARTIFACTORY_OUT_REPO   local repository name to upload image
- *   DOCKER_REGISTRY_SERVER Docker server to use to push image
- *   DOCKER_REGISTRY_SSL    Docker registry is SSL-enabled if true
- *   FORCE_BUILD            Force build even when image exists
- *   PROMOTE_ENV            Environment for promotion (default "stable")
- *   KEEP_REPOS             Always keep input repositories even on failure
- *   OC_VERSION             OpenContrail version (should be 3.0)
- *   PIPELINE_LIBS_URL      URL to git repo with shared pipeline libs
- *   PIPELINE_LIBS_BRANCH   Branch of pipeline libs repo
- *   PIPELINE_LIBS_CREDENTIALS_ID   Credentials ID to use to access shared
- *                                  libs repo
- */
+**/
 
-// Load shared libs
-def common, artifactory
-fileLoader.withGit(PIPELINE_LIBS_URL, PIPELINE_LIBS_BRANCH, PIPELINE_LIBS_CREDENTIALS_ID, '') {
-    common = fileLoader.load("common");
-    artifactory = fileLoader.load("artifactory");
-}
+def common = new com.mirantis.mk.Common()
+def gerrit = new com.mirantis.mk.Gerrit()
+def dockerLib = new com.mirantis.mk.Docker()
 
-// Define global variables
+def server = Artifactory.server('mcp-ci')
+def artTools = new com.mirantis.mcp.MCPArtifactory()
 def timestamp = common.getDatetime()
+def artifactoryUrl = server.getUrl()
+def dockerDevRepo = 'docker-dev-local'
+def dockerProdRepo = 'docker-prod-local'
+def dockerDevRegistry = "${dockerDevRepo}.docker.mirantis.net"
+def dockerProdRegistry = "${dockerProdRepo}.docker.mirantis.net"
+def imageNameSpace = 'openstack-docker'
 
-def images = [
-    "opencontrail-database",
-    "zookeeper",
-    "redis",
-    "opencontrail-config",
-    "opencontrail-control",
-    "opencontrail-analytics",
-    "opencontrail-webui"
-]
-def inRepos = [
-    "in-dockerhub",
-    "in-ubuntu",
-    "in-ubuntu-oc30"
-]
 
-def art
-try {
-    art = artifactory.connection(
-        ARTIFACTORY_URL,
-        DOCKER_REGISTRY_SERVER,
-        DOCKER_REGISTRY_SSL ?: true,
-        ARTIFACTORY_OUT_REPO
-    )
-} catch (MissingPropertyException e) {
-    art = null
-}
+node("docker") {
+  def workspace = common.getWorkspace()
+  def imageList = []
+  def images = []
 
-def git_commit
-
-def buildComponentImageStep(img, opencontrail_version, timestamp) {
-    return {
-        // Other components, using opencontrail-base
-        sh "git checkout -f docker/${img}.Dockerfile; sed -i -e 's,^FROM.*,FROM opencontrail-${opencontrail_version}/opencontrail-base:${timestamp},g' docker/${img}.Dockerfile"
-        docker.build(
-            "opencontrail-${opencontrail_version}/${img}:${timestamp}",
-            [
-                "-f docker/${img}.Dockerfile",
-                "docker"
-            ].join(' ')
-        )
+  try {
+    stage("cleanup") {
+      sh("rm -rf * || true")
     }
-}
 
-def testComponentImageStep(img, opencontrail_version, timestamp) {
-    return {
-        docker.image("opencontrail-${opencontrail_version}/${img}:${timestamp}").inside {
-            sh "true"
-        }
+    stage("checkout") {
+        gerrit.gerritPatchsetCheckout(IMAGE_GIT_URL, "", IMAGE_BRANCH, IMAGE_CREDENTIALS_ID)
     }
-}
 
-def uploadComponentImageStep(artifactory, art, img, opencontrail_version, properties, timestamp) {
-    return {
-        println "Uploading artifact ${img} into ${art.outRepo}"
-        artifactory.dockerPush(
-            art,
-            docker.image("opencontrail-${opencontrail_version}/${img}:${timestamp}"),
-            "opencontrail-${opencontrail_version}/${img}",
-            properties,
-            timestamp
-        )
-    }
-}
+    docker.withRegistry("http://${dockerDevRegistry}/", 'artifactory') {
+      stage("build") {
 
-node('docker') {
-    checkout scm
-    git_commit = common.getGitCommit()
-
-    if (art) {
-        // Check if image of this commit hash isn't already built
-        def results = artifactory.findArtifactByProperties(
-            art,
-            [
-                "git_commit": git_commit
-            ],
-            art.outRepo
-        )
-        if (results.size() >= images.size()) {
-            println "There are already ${results.size} artefacts with same git_commit"
-            if (FORCE_BUILD.toBoolean() == false) {
-                common.abortBuild()
-            }
+        def baseImage = ""
+        dir("${workspace}/docker") {
+          imageList = sh(script: "ls *Dockerfile -1 | sed -e 's/\\..*\$//'", returnStdout: true).trim().tokenize()
+          baseImage = sh(script: "ls *-base.Dockerfile -1 | sed -e 's/\\..*\$//'", returnStdout: true).trim().tokenize()[0]
         }
 
-        stage("prepare") {
-            // Prepare Artifactory repositories
-            out = artifactory.createRepos(art, inRepos, timestamp)
-            println "Created input repositories: ${out}"
-        }
-    }
+        imageList.remove(baseImage)
+        imageList.add(0,baseImage)
 
-    try {
-        stage("build") {
-            // Build opencontrail-base image
-            if (art) {
-                docker.withRegistry("${art.docker.proto}://in-dockerhub-${timestamp}.${art.docker.base}", "artifactory") {
-                    // Hack to set custom docker registry for base image
-                    sh "git checkout -f docker/opencontrail-base.Dockerfile; sed -i -e 's,^FROM ,FROM in-dockerhub-${timestamp}.${art.docker.base}/,g' docker/opencontrail-base.Dockerfile"
-                    docker.build(
-                        "opencontrail-${OC_VERSION}/opencontrail-base:$timestamp",
-                        [
-                            "--build-arg artifactory_url=${art.url}",
-                            "--build-arg timestamp=${timestamp}",
-                            "-f docker/opencontrail-base.Dockerfile",
-                            "docker"
-                        ].join(' ')
-                    )
-                }
+        for (int i = 0; i < imageList.size(); i++) {
+          def imageName = imageList[i]
+            common.infoMsg("Building image ${imageName}")
+            images.add(dockerLib.buildDockerImage("${dockerDevRegistry}/${imageNameSpace}/${imageName}", "", "./Docker/${imageName}.Dockerfile", "latest"))
+        }
+      }
+
+      stage("upload to ${REGISTRY_URL}"){
+        for (int i = 0; i < images.size(); i++) {
+            def imageName = imageList[i]
+            artTools.uploadImageToArtifactory(server, dockerDevRegistry,
+                    "${imageNameSpace}/${imageName}",
+                    timestamp,
+                    dockerDevRepo)
+            sh "docker rmi -f ${dockerDevRegistry}/${imageNameSpace}/${imageName}"
+        }
+      }
+    }
+    stage('promote') {
+        for (int i = 0; i < imageList.size(); i++) {
+            def imageName = imageList[i]
+            def properties = [ 'com.mirantis.targetImg': "${imageNameSpace}/${imageName}" ]
+            // Search for an artifact with required properties
+            String artifact_uri = artTools.uriByProperties(artifactoryUrl, properties)
+            if ( artifact_uri ) {
+                def buildInfo = artTools.getPropertiesForArtifact(artifact_uri)
+                String currentTag = buildInfo.get('com.mirantis.targetTag')[0]
+                String targetTag = currentTag.split('_')[0]
+                // promote docker image
+
+                artTools.promoteDockerArtifact(artifactoryUrl,
+                        dockerDevRepo,
+                        dockerProdRepo,
+                        "${imageNameSpace}/${imageName}",
+                        currentTag,
+                        targetTag,
+                        true)
             } else {
-                docker.build(
-                    "opencontrail-${OC_VERSION}/opencontrail-base:$timestamp",
-                    [
-                        "--build-arg repo_url='${REPOSITORY_URL}'",
-                        "--build-arg repo_key=${REPOSITORY_KEY}",
-                        "--build-arg timestamp=${timestamp}",
-                        "-f docker/opencontrail-base.Dockerfile",
-                        "docker"
-                    ].join(' ')
-                )
-            }
-
-            // Build per-component images
-            buildSteps = [:]
-            for (img in images) {
-                buildSteps[img] = buildComponentImageStep(img, OC_VERSION, timestamp)
-            }
-            parallel buildSteps
-
-            if (art) {
-                println "Setting offline parameter to input repositories"
-                out = artifactory.setOffline(art, inRepos, timestamp)
-            }
-        }
-
-    } catch (Exception e) {
-        currentBuild.result = 'FAILURE'
-        if (art && KEEP_REPOS.toBoolean() == false) {
-            println "Build failed, cleaning up input repositories"
-            out = artifactory.deleteRepos(art, inRepos, timestamp)
-        }
-        throw e
-    }
-
-    stage("upload") {
-        if (art) {
-            // Push to artifactory/docker registry
-            uploadSteps = [:]
-            for (img in images) {
-                uploadSteps[img] = uploadComponentImageStep(
-                    artifactory,
-                    art,
-                    img,
-                    OC_VERSION,
-                    [
-                        "git_commit": git_commit
-                    ],
-                    timestamp)
-            }
-            parallel uploadSteps
-        } else {
-            for (img in images) {
-                docker.withRegistry(DOCKER_REGISTRY_SERVER) {
-                    image = docker.image("opencontrail-${OC_VERSION}/${img}:${timestamp}")
-                    image.push()
-                    // Also mark latest image
-                    image.push("latest")
-                }
+                echo 'Artifacts were not found, nothing to promote'
             }
         }
     }
-}
+  } catch (Throwable e) {
+     currentBuild.result = "FAILURE"
+     throw e
+  } finally {
+     common.sendNotification(currentBuild.result,"",["slack"])
+  }
 
-if (art) {
-    def promoteEnv = PROMOTE_ENV ? PROMOTE_ENV : "stable"
-
-    timeout(time:1, unit:"DAYS") {
-        input "Promote to ${promoteEnv}?"
-    }
-
-    node('docker') {
-        stage("promote-${promoteEnv}") {
-            for (img in images) {
-                artifactory.dockerPromote(art, "opencontrail-${OC_VERSION}/${img}", timestamp, "${promoteEnv}")
-            }
-        }
-    }
 }

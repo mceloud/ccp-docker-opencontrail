@@ -41,18 +41,19 @@ node("docker") {
     docker.withRegistry("http://${dockerDevRegistry}/", 'artifactory') {
       stage("build") {
 
+        def baseImage = ""
         dir("${workspace}/docker") {
           imageList = sh(script: "ls *Dockerfile -1 | sed -e 's/\\..*\$//'", returnStdout: true).trim().tokenize()
+          baseImage = sh(script: "ls *-base.Dockerfile -1 | sed -e 's/\\..*\$//'", returnStdout: true).trim().tokenize()[0]
         }
 
-        def baseImage = sh(script: "ls *-base.Dockerfile -1 | sed -e 's/\\..*\$//'").trim().tokenize()[0]
         imageList.remove(baseImage)
         imageList.add(0,baseImage)
 
         for (int i = 0; i < imageList.size(); i++) {
           def imageName = imageList[i]
             common.infoMsg("Building image ${imageName}")
-            images.add(dockerLib.buildDockerImage("${dockerDevRegistry}/${imageNameSpace}/${imageName}", "", "./${imageName}.Dockerfile", "latest"))
+            images.add(dockerLib.buildDockerImage("${dockerDevRegistry}/${imageNameSpace}/${imageName}", "", "./Docker/${imageName}.Dockerfile", "latest"))
         }
       }
 

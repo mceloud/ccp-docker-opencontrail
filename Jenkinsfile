@@ -42,8 +42,12 @@ node("docker") {
       stage("build") {
 
         dir("${workspace}/docker") {
-          imageList = sh(script: "ls *Dockerfile -1 | sed -e 's/\\..*\$//'", returnStdout: true).tokenize()
+          imageList = sh(script: "ls *Dockerfile -1 | sed -e 's/\\..*\$//'", returnStdout: true).trim().tokenize()
         }
+
+        def baseImage = sh(script: "ls *-base.Dockerfile -1 | sed -e 's/\\..*\$//'").trim().tokenize()[0]
+        imageList.remove(baseImage)
+        imageList.add(0,baseImage)
 
         for (int i = 0; i < imageList.size(); i++) {
           def imageName = imageList[i]
